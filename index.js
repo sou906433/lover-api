@@ -1,41 +1,39 @@
 const express = require('express');
 const yts = require('yt-search');
-const play = require('play-dl');
+const ytdl = require('@distube/ytdl-core');
 const app = express();
 
-// play-dl init - 429 fix এর জন্য জরুরি
-play.getFreeClientID();
-play.setToken({
-  youtube : {
-    cookie : process.env.YT_COOKIE || ""
-  }
-});
-
 app.get('/', (req, res) => {
-  res.json({ owner: "LOVER", status: "API Running - Fixed" });
+  res.json({ owner: "LOVER", status: "API Running" });
 });
 
 app.get('/play', async (req, res) => {
   try {
     const q = req.query.q;
-    if (!q) return res.status(400).json({ error: "গানের নাম লেখো?q=arijit" });
+    if (!q) return res.json({ error: "q দাও" });
 
     const search = await yts(q);
-    if (!search.videos.length) return res.json({ error: "Song Not Found" });
     const video = search.videos[0];
+    if (!video) return res.json({ error: "Not Found" });
 
-    let yt_info = await play.video_info(video.url);
-    let stream = await play.stream_from_info(yt_info);
+    const info = await ytdl.getInfo(video.url, {
+      playerClients: ["ANDROID"]
+    });
 
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Content-Disposition', `attachment; filename="${video.title}.mp3"`);
-    stream.stream.pipe(res);
+    const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+
+    res.json({
+      title: video.title,
+      thumbnail: video.thumbnail,
+      download: format.url,
+      url: video.url
+    });
 
   } catch (e) {
-    console.log(e);
+    console.error(e);
     res.json({ error: "API Error", msg: e.message });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("LOVER API FIXED"));
+app.listen(PORT, () => console.log("LOVER API OK"));
