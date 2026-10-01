@@ -1,40 +1,41 @@
 const express = require('express');
 const yts = require('yt-search');
-const ytdl = require('@distube/ytdl-core');
+const play = require('play-dl');
 const app = express();
 
-app.get('/', (req, res) => {
-  res.json({ owner: "LOVER", status: "API Running" });
+// play-dl init - 429 fix এর জন্য জরুরি
+play.getFreeClientID();
+play.setToken({
+  youtube : {
+    cookie : process.env.YT_COOKIE || ""
+  }
 });
 
-// গান সার্চ + ডাউনলোড লিঙ্ক দেবে
+app.get('/', (req, res) => {
+  res.json({ owner: "LOVER", status: "API Running - Fixed" });
+});
+
 app.get('/play', async (req, res) => {
   try {
     const q = req.query.q;
-    if (!q) return res.json({ error: "গানের নাম লেখো?q=arijit singh" });
+    if (!q) return res.status(400).json({ error: "গানের নাম লেখো?q=arijit" });
 
     const search = await yts(q);
+    if (!search.videos.length) return res.json({ error: "Song Not Found" });
     const video = search.videos[0];
 
-    // ডাইরেক্ট mp3 লিঙ্ক বের করা
-    const info = await ytdl.getInfo(video.url);
-    const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
-    const bestAudio = audioFormats[0];
+    let yt_info = await play.video_info(video.url);
+    let stream = await play.stream_from_info(yt_info);
 
-    res.json({
-      creator: "LOVER",
-      title: video.title,
-      thumbnail: video.thumbnail,
-      duration: video.timestamp,
-      videoId: video.videoId,
-      url: video.url,
-      download: bestAudio.url // এটাই তোমার mp3 লিঙ্ক
-    });
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="${video.title}.mp3"`);
+    stream.stream.pipe(res);
 
   } catch (e) {
+    console.log(e);
     res.json({ error: "API Error", msg: e.message });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("LOVER API STARTED"));
+app.listen(PORT, () => console.log("LOVER API FIXED"));
